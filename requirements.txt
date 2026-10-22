@@ -1,3 +1,4 @@
 # Runtime dependencies
 psutil>=5.9,<8
-streamlit>=1.32,<2
+pandas>=2.0,<3
+streamlit>=1.37,<2
