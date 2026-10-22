@@ -1,0 +1,156 @@
+Let's build this as your first complete module of OS Performance Observatory, step by step. We'll keep it beginner-friendly, but structure it like a real project so your teammates can integrate it with the analyzer and diagnosis features later.
+
+The feature has two parts:
+1. Backend collector: reads live CPU, memory, swap, and process information from the operating system.
+2. Dashboard: periodically refreshes the metrics and displays charts, summary cards, and the top resource-consuming processes.
+We'll use Python + psutil + Streamlit. You don't need a separate frontend or database for this feature yet.
+1. Files you need to create
+Inside your team's project repository, create this structure:
+os-performance-observatory/
+
+collector.py
+
+Collects CPU, RAM, swap, process count, and top processes. Keep all operating-system collection logic here.
+
+app.py
+
+Displays metrics, charts, refresh controls, and process tables using Streamlit.
+
+
+README.md
+
+Explains setup and how to launch the monitoring dashboard.
+
+3. Build collector.py — the data collection module
+This is the most important part of your assigned feature. It should collect data and return it in a predictable structure. It should not contain dashboard code.
+
+Create collector.py and add the following:
+                running_process_count += 1        except (psutil.NoSuchProcess, psutil.AccessDenied):            continue    return {        "sampled_at": datetime.now(timezone.utc).isoformat(),        "cpu_percent": cpu_percent,        "memory": {            "total": memory.total,            "used": memory.used,            "available": memory.available,            "percent": memory.percent,        },        "swap": {            "total": swap.total,            "used": swap.used,            "percent": swap.percent,        },        "running_process_count": running_process_count,    }def get_top_processes(limit=10):    """Collect process information and rank it by CPU and memory."""    processes = []    for proc in psutil.process_iter(        ["pid", "name", "memory_percent", "memory_info", "status"]    ):        try:            # CPU percentage uses readings from successive samples.            cpu_percent = proc.cpu_percent(interval=None)            info = proc.info            memory_info = info.get("memory_info")            processes.append({                "pid": info["pid"],                "name": info["name"] or "Unknown",                "cpu_percent": round(cpu_percent, 2),                "memory_percent": round(                    info["memory_percent"] or 0.0, 2                ),                "memory_rss": (                    memory_info.rss if memory_info else 0                ),                "status": info["status"] or "unknown",            })        except (            psutil.NoSuchProcess,            psutil.AccessDenied,            psutil.ZombieProcess,        ):            # Processes can disappear while being inspected.            continue    top_cpu = sorted(        processes,        key=lambda p: p["cpu_percent"],        reverse=True,    )[:limit]    top_memory = sorted(        processes,        key=lambda p: p["memory_rss"],        reverse=True,    )[:limit]    return {        "top_cpu": top_cpu,
+
+
+
+Understand what this code is doing
+
+CPU utilization
+
+psutil.cpu_percent(interval=None) returns CPU utilization measured since the previous reading. The first reading can be 0.0 because there is no previous interval to compare against. Later samples are more meaningful.
+
+
+
+RAM metrics
+
+psutil.virtual_memory() provides total RAM, used RAM, available RAM, and utilization percentage. available is generally more useful than free for understanding how much memory can be made available without swapping.
+
+
+
+Swap metrics
+
+psutil.swap_memory() reports the swap capacity, usage, and percentage. High swap usage alone does not necessarily indicate an active memory bottleneck; interpret it alongside other metrics.
+
+
+
+Top processes
+
+Each process has a PID, name, CPU percentage, memory percentage, resident memory, and status. We sort the same process snapshot two ways to obtain the top CPU consumers and top memory consumers.
+
+
+
+Important: Process CPU readings are also interval-based. The first reading for a process may be zero. A process can disappear between collection steps, so the code catches common process-access errors instead of crashing.
+
+The running_process_count above counts processes reported in the running state, not every process that exists. If your evaluator means total process count instead, add a separate total count using len(psutil.pids()) and label the two values clearly.
+4. Build app.py — the live dashboard
+Now we'll create the interface. It will display:
+- Four summary metrics for CPU, RAM, swap, and running processes.
+- RAM details, including used and available memory.
+- Live CPU and memory trend charts.
+- Two process tables, ranked independently by CPU and memory.
+- Automatic refresh every two seconds.
+Create app.py:
+import streamlit as stimport pandas as pdfrom collector import collect_snapshotst.set_page_config(    page_title="OS Performance Observatory",    page_icon="📊",    layout="wide",)st.title("OS Performance Observatory")st.caption("Real-time Linux system monitoring")def to_gb(value):    """Convert bytes to gigabytes for display."""    return value / (1024 ** 3)def prepare_process_table(processes):    """Prepare process data for display."""    rows = []    for process in processes:        rows.append({            "PID": process["pid"],            "Process": process["name"],            "CPU (%)": process["cpu_percent"],            "Memory (%)": process["memory_percent"],            "RAM (MB)": round(                process["memory_rss"] / (1024 ** 2), 2            ),
+
+
+
+What makes the dashboard update automatically?
+This line is responsible:
+@st.fragment(run_every=2)
+
+
+
+It tells Streamlit to rerun the dashboard fragment every two seconds. On each refresh, the application collects a new snapshot, updates the metric cards and process tables, and appends a new observation to the trend chart.
+
+We store the recent history in st.session_state, so it survives the fragment's reruns during the current session. We limit it to 60 samples to keep the dashboard lightweight.
+
+At a two-second interval, the chart will display roughly the last two minutes of observations once it has filled up.
+5. Run the application
+Your folder should now look like this:
+os-performance-observatory/
+├── app.py
+├── collector.py
+├── requirements.txt
+└── .venv/
+
+
+Activate your environment if it isn't already active:
+source .venv/bin/activate
+
+
+Launch the dashboard:
+streamlit run app.py
+
+
+Streamlit will provide a local address, usually http://localhost:8501. Open it in your browser.
+
+You should see live metric cards, memory information, trend charts, and the two process tables.
+6. Test the collector independently
+Before debugging the dashboard, check that the collector returns valid data.
+
+Run this command from your project root:
+python -c "from collector import collect_snapshot; print(collect_snapshot())"
+
+
+The output should contain a dictionary similar to this (your numbers and process names will differ):
+{    "sampled_at": "2026-10-22T07:00:00+00:00",    "cpu_percent": 24.5,    "memory": {        "total": 16777216000,        "used": 8589934592,        "available": 8178892800,        "percent": 51.2    },    "swap": {        "total": 2147483648,        "used": 0,        "percent": 0.0    },    "running_process_count": 4,    "top_cpu": [],    "top_memory": []}
+
+
+
+The numbers above are illustrative, not measured results. The process lists will normally contain entries.
+
+You can also run the command twice to check how the readings change between samples.
+7. Test the dashboard under different conditions
+Testing checklist
+0 of 5 checked
+
+[ ] Normal system activity
+
+Metrics display correctly; no diagnosis is generated by this monitoring module.
+
+
+[ ] CPU-intensive task
+
+CPU utilization rises, and the process rankings update across subsequent samples.
+
+
+[ ] Memory-intensive task
+
+RAM utilization changes, and memory-heavy processes appear in the ranking.
+
+
+[ ] Recovery after a task ends
+
+New samples show the resource usage falling when the workload stops.
+
+
+[ ] Process exits during sampling
+
+The collector skips inaccessible processes and continues running.
+
+
+
+For your first demonstration, a simple CPU-intensive task is enough. On Linux, you can use:
+yes > /dev/null
+
+
+This consumes CPU until you stop it with Ctrl+C. Start it in a separate terminal, observe the dashboard, then stop it and observe recovery. It may use one CPU core heavily, so the overall CPU percentage depends on the number of available cores.
+
+Don't run multiple copies or leave the command running unnecessarily.
+8
