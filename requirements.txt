@@ -1,0 +1,3 @@
+# Runtime dependencies
+psutil>=5.9,<8
+streamlit>=1.32,<2
