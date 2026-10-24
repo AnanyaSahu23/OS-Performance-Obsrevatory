@@ -6,7 +6,9 @@ import pandas as pd
 import streamlit as st
 
 from analyzer import assess_bottlenecks
+from attribution import assess_process_attribution
 from collector import collect_snapshot
+from config import PROCESS_ATTRIBUTION_CONFIG
 from diagnosis import build_diagnoses
 from health import evaluate_health
 from recommendations import build_recommendations
@@ -58,9 +60,52 @@ def _process_table(processes: List[Dict[str, Any]]) -> pd.DataFrame:
     )
 
 
+def _show_attribution_findings(
+    title: str, findings: List[Dict[str, Any]], explanation: str
+) -> None:
+    st.subheader(title)
+    st.caption(explanation)
+    if not findings:
+        st.info(
+            "No statistically interpretable process relationships were found "
+            "for this metric in the current history."
+        )
+        return
+    rows = [
+        {
+            "Process": finding["name"],
+            "PID": finding["pid"],
+            "Pearson r": finding["correlation"],
+            "Strength": finding["strength"],
+            "Direction": finding["direction"],
+            "Samples": finding["sample_count"],
+            "Top 3 during pressure": (
+                f'{finding["top_pressure_samples"]} '
+                f'({finding["pressure_overlap_percent"]:.1f}%)'
+            ),
+        }
+        for finding in findings
+    ]
+    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    for finding in findings:
+        with st.expander(
+            f'{finding["name"]} (PID {finding["pid"]}) — supporting evidence'
+        ):
+            st.write(finding["evidence"])
+            st.write(f'Interpretation: {finding["interpretation"]}.')
+
+
 @st.fragment(run_every=REFRESH_SECONDS)
 def render_dashboard() -> None:
     snapshot = collect_snapshot()
+
+    if "system_sample_history" not in st.session_state:
+        st.session_state.system_sample_history = []
+    sample_history = st.session_state.system_sample_history
+    sample_history.append(snapshot)
+    max_samples = PROCESS_ATTRIBUTION_CONFIG["max_history_samples"]
+    st.session_state.system_sample_history = sample_history[-max_samples:]
+    sample_history = st.session_state.system_sample_history
 
     if "metric_history" not in st.session_state:
         st.session_state.metric_history = []
@@ -90,6 +135,7 @@ def render_dashboard() -> None:
         snapshot["sampled_at"],
         recommendations=recommendations,
     )
+    attribution = assess_process_attribution(sample_history)
     st.subheader("System Health")
     status = health["status"]
     if status == "Critical":
@@ -171,6 +217,92 @@ def render_dashboard() -> None:
                     )
                 st.caption(diagnosis["limitation"])
     st.caption(bottlenecks["overall_note"])
+
+    st.divider()
+    st.header("Statistical Process Attribution")
+    st.caption(
+        "Finds processes whose activity statistically moves with system CPU, "
+        "available memory, or swap usage. Association does not establish cause."
+    )
+    context = attribution["pressure_context"]
+    attribution_col1, attribution_col2, attribution_col3 = st.columns(3)
+    attribution_col1.metric("Samples collected", attribution["window_samples"])
+    attribution_col2.metric("CPU-pressure samples", context["cpu_pressure_samples"])
+    attribution_col3.metric(
+        "Memory-pressure samples", context["memory_pressure_samples"]
+    )
+    if attribution["status"] == "insufficient_data":
+        st.info(
+            f"Collect at least {attribution['minimum_samples']} samples before "
+            "interpreting correlations."
+        )
+    else:
+        _show_attribution_findings(
+            "CPU attribution",
+            attribution["cpu_findings"],
+            "Pearson correlation between system CPU utilization and each process's "
+            "CPU utilization across the full observation window.",
+        )
+        _show_attribution_findings(
+            "Memory attribution",
+            attribution["memory_findings"],
+            "Pearson correlation between per-interval process RSS changes and "
+            "available RAM changes. A negative relationship means RSS growth "
+            "tends to coincide with falling available RAM.",
+        )
+        _show_attribution_findings(
+            "Swap attribution",
+            attribution["swap_findings"],
+            "Pearson correlation between per-interval process RSS changes and "
+            "system swap-used changes.",
+        )
+    with st.expander("How to interpret these results"):
+        st.write(attribution["message"])
+        for limitation in attribution["limitations"]:
+            st.write(f"- {limitation}")
+
+    st.divider()
+    st.header("Statistical Process Attribution")
+    st.caption(
+        "Finds processes whose activity statistically moves with system CPU, "
+        "available memory, or swap usage."
+    )
+    context = attribution["pressure_context"]
+    attribution_col1, attribution_col2, attribution_col3 = st.columns(3)
+    attribution_col1.metric("Samples collected", attribution["window_samples"])
+    attribution_col2.metric("CPU-pressure samples", context["cpu_pressure_samples"])
+    attribution_col3.metric(
+        "Memory-pressure samples", context["memory_pressure_samples"]
+    )
+    if attribution["status"] == "insufficient_data":
+        st.info(
+            f"Collect at least {attribution['minimum_samples']} samples before "
+            "interpreting correlations."
+        )
+    else:
+        _show_attribution_findings(
+            "CPU attribution",
+            attribution["cpu_findings"],
+            "Pearson correlation between system CPU utilization and each process's "
+            "CPU utilization across the full observation window.",
+        )
+        _show_attribution_findings(
+            "Memory attribution",
+            attribution["memory_findings"],
+            "Pearson correlation between per-interval process RSS changes and "
+            "available RAM changes. A negative relationship means RSS growth "
+            "tends to coincide with falling available RAM.",
+        )
+        _show_attribution_findings(
+            "Swap attribution",
+            attribution["swap_findings"],
+            "Pearson correlation between per-interval process RSS changes and "
+            "system swap-used changes.",
+        )
+    with st.expander("How to interpret these results"):
+        st.write(attribution["message"])
+        for limitation in attribution["limitations"]:
+            st.write(f"- {limitation}")
 
     cpu_card, memory_card, swap_card, process_card = st.columns(4)
     cpu_card.metric("CPU", f'{snapshot["cpu_percent"]:.1f}%')

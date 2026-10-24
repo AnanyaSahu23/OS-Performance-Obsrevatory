@@ -11,6 +11,7 @@ def make_process(pid, name, cpu, memory_percent, rss, status=psutil.STATUS_SLEEP
     process = SimpleNamespace(
         info={
             "pid": pid,
+            "create_time": 1000.0 + pid,
             "name": name,
             "memory_percent": memory_percent,
             "memory_info": SimpleNamespace(rss=rss),
@@ -49,6 +50,9 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(snapshot["memory"]["available"], 400)
         self.assertEqual(snapshot["swap"]["percent"], 10.0)
         self.assertEqual(snapshot["running_process_count"], 2)
+        self.assertEqual(len(snapshot["processes"]), 3)
+        self.assertEqual(snapshot["processes"][0]["create_time"], 1010.0)
+        self.assertIn("memory_rss", snapshot["processes"][0])
         self.assertEqual([p["pid"] for p in snapshot["top_cpu"]], [10, 20])
         self.assertEqual([p["pid"] for p in snapshot["top_memory"]], [20, 10])
 
