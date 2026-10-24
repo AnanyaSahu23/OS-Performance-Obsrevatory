@@ -10,10 +10,19 @@ from collector import collect_snapshot
 from diagnosis import build_diagnoses
 from health import evaluate_health
 from recommendations import build_recommendations
+from storage import (
+    get_recent_diagnoses,
+    get_recent_metrics,
+    initialize_database,
+    save_diagnoses,
+    save_snapshot,
+)
 
 
 HISTORY_LIMIT = 60
 REFRESH_SECONDS = 2
+
+initialize_database()
 
 st.set_page_config(
     page_title="OS Performance Observatory",
@@ -75,6 +84,12 @@ def render_dashboard() -> None:
     bottlenecks = assess_bottlenecks(snapshot, history)
     diagnoses = build_diagnoses(snapshot, health, bottlenecks, history)
     recommendations = build_recommendations(diagnoses)
+    save_snapshot(snapshot)
+    save_diagnoses(
+        diagnoses,
+        snapshot["sampled_at"],
+        recommendations=recommendations,
+    )
     st.subheader("System Health")
     status = health["status"]
     if status == "Critical":
@@ -128,6 +143,10 @@ def render_dashboard() -> None:
                     for item in diagnoses
                     if item["condition"] == f"{resource}_pressure"
                 )
+                st.caption(
+                    f'Severity: {diagnosis["severity"]} · '
+                    f'Evidence status: {diagnosis["evidence_status"]}'
+                )
                 st.markdown("**Evidence**")
                 for item in diagnosis["evidence"]:
                     st.write(f"- {item}")
@@ -174,13 +193,49 @@ def render_dashboard() -> None:
     st.caption(f'Latest sample: {snapshot["sampled_at"]} (UTC)')
 
     st.subheader("Recent resource trends")
-    chart_data = pd.DataFrame(history).set_index("sampled_at")
-    st.line_chart(chart_data, y=["CPU (%)", "Memory (%)"], height=260)
+    stored_metrics = get_recent_metrics(HISTORY_LIMIT)
+    if stored_metrics:
+        chart_data = pd.DataFrame(stored_metrics).set_index("sampled_at")
+        chart_data = chart_data.rename(
+            columns={
+                "cpu_percent": "CPU (%)",
+                "memory_percent": "Memory (%)",
+                "swap_percent": "Swap (%)",
+            }
+        )
+        st.line_chart(
+            chart_data,
+            y=["CPU (%)", "Memory (%)", "Swap (%)"],
+            height=260,
+        )
+    else:
+        st.info("Historical samples will appear after the first sample is stored.")
     st.caption(
-        f"Showing up to {HISTORY_LIMIT} samples (about "
+        f"Showing up to {HISTORY_LIMIT} most recent stored samples (about "
         f"{HISTORY_LIMIT * REFRESH_SECONDS // 60} minutes). "
         "CPU and per-process CPU readings may be zero on their first sample."
     )
+
+    st.subheader("Recent diagnosis changes")
+    diagnosis_events = get_recent_diagnoses()
+    if diagnosis_events:
+        st.dataframe(
+            [
+                {
+                    "Time (UTC)": event["recorded_at"],
+                    "Condition": event["condition"],
+                    "Status": event["status"],
+                    "Severity": event["severity"],
+                    "Evidence": event["evidence_status"],
+                    "Recommendation": event["recommendation"],
+                }
+                for event in diagnosis_events
+            ],
+            hide_index=True,
+            use_container_width=True,
+        )
+    else:
+        st.write("No diagnosis state changes have been recorded yet.")
 
     cpu_col, memory_process_col = st.columns(2)
     with cpu_col:

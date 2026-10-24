@@ -119,3 +119,11 @@ DEFAULT_RECOMMENDATION = {
     "priority": "Informational",
     "message": "Review the available evidence and continue monitoring.",
 }
+
+STORAGE_CONFIG = {
+    # Relative paths are resolved from the repository root (the config.py folder).
+    "database_path": "data/observatory.sqlite3",
+    # Set to None to retain history indefinitely.
+    "retention_days": 30,
+    "connection_timeout_seconds": 5,
+}

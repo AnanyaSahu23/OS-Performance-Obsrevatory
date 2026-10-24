@@ -1,9 +1,10 @@
 # OS Performance Observatory
 
 The current implementation includes a `psutil` collector, a Streamlit
-dashboard, a rule-based health indicator, and an evidence-based assessment of
-possible CPU and memory pressure. It does not confirm performance bottlenecks
-or recommend automated corrective actions.
+dashboard, a rule-based health indicator, evidence-based CPU and memory
+assessments, structured diagnosis records, configurable informational
+recommendations, and SQLite history for metric samples and diagnosis changes.
+It does not confirm performance bottlenecks or take corrective action.
 
 ## Requirements
 
@@ -11,8 +12,8 @@ or recommend automated corrective actions.
 - Linux/Ubuntu for the intended target platform
 - Dependencies from `requirements.txt`
 
-SQLite, `/proc` access, and CSV support can be added later using Python's
-standard library; no extra packages are needed for them.
+SQLite, `/proc` access, and CSV support use Python's standard library; no extra
+packages are needed for them.
 
 ## Setup
 
@@ -32,8 +33,8 @@ streamlit run app.py
 ```
 
 Open the local URL printed by Streamlit (usually <http://localhost:8501>).
-The dashboard refreshes every two seconds and retains up to 60 observations
-per browser session.
+The dashboard refreshes every two seconds, retains a short in-session window
+for live analysis, and stores metric samples and diagnosis changes in SQLite.
 
 ## Check the collector
 
@@ -117,6 +118,27 @@ status: confirmation requires evidence of actual performance impact, such as
 increased application response time or slower task completion, alongside
 further investigation.
 
+## Diagnosis and recommendations
+
+`diagnosis.py` converts analyzer findings into structured records containing
+condition, status, severity, evidence status, supporting evidence, observed
+processes, and a duration estimate when the sample history supports one.
+Observed top processes are presented as resource consumers, not as proven
+causes. Missing duration evidence remains unavailable rather than being
+invented.
+
+`recommendations.py` selects informational next steps using configurable rules
+in `config.py`. Recommendations do not terminate processes or alter system
+settings. Edit `RECOMMENDATION_RULES` to tune wording or add rules.
+
+## Historical storage
+
+`storage.py` stores samples and diagnosis state transitions in
+`data/observatory.sqlite3`. The dashboard reads recent stored samples for its
+trend chart and displays recent diagnosis changes. The database path and
+retention period are configured through `STORAGE_CONFIG` in `config.py`; the
+default retention is 30 days. SQLite files under `data/` are ignored by Git.
+
 ## Run tests
 
 ```bash
@@ -132,12 +154,14 @@ Overall CPU percentage depends on the number of available CPU cores.
 ## Implementation boundaries
 
 - `collector.py` owns operating-system sampling and returns plain dictionaries.
-- `app.py` renders the dashboard and keeps short-lived metric history in the
-  Streamlit session; it does not persist data.
-- `health.py` and `analyzer.py` evaluate configured pressure indicators but do
-  not diagnose or confirm performance bottlenecks.
+- `app.py` integrates the collector, health indicator, analyzer, diagnosis,
+  recommendations, and storage modules into the dashboard.
+- `health.py` and `analyzer.py` evaluate configured pressure indicators;
+  `diagnosis.py` explains those findings without claiming confirmed causation.
+- `recommendations.py` returns safe informational steps. `storage.py` saves
+  samples and diagnosis state changes in SQLite.
 - `tests/` covers the collector, health indicator, and assessment logic using
   synthetic metrics where appropriate.
 
-This separation gives future analyzer, recommendation, and storage modules a
-stable snapshot interface to integrate with.
+The modules exchange plain dictionaries so they can be reviewed and changed
+independently.

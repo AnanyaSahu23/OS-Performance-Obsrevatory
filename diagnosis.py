@@ -1,6 +1,7 @@
 """Turn health and analyzer output into explainable diagnosis records."""
 
 from datetime import datetime
+import math
 from typing import Any, Dict, List, Optional, Sequence
 
 from config import (
@@ -12,11 +13,13 @@ from config import (
 
 
 def _as_number(value: Any) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    return number if number == number and abs(number) != float("inf") else None
+    return number if math.isfinite(number) else None
 
 
 def _sample_time(sample: Dict[str, Any]) -> Optional[datetime]:
@@ -52,7 +55,9 @@ def _duration_seconds(
     return (len(matching) - 1) * interval if interval is not None else None
 
 
-def _critical_for_resource(resource: str, snapshot: Dict[str, Any], history) -> bool:
+def _critical_for_resource(
+    resource: str, snapshot: Dict[str, Any], history: Sequence[Dict[str, Any]]
+) -> bool:
     if resource == "cpu":
         threshold = HEALTH_CONFIG.get("cpu_critical", 95.0)
         samples = max(1, int(HEALTH_CONFIG.get("cpu_critical_samples", 3)))
