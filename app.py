@@ -261,49 +261,6 @@ def render_dashboard() -> None:
         for limitation in attribution["limitations"]:
             st.write(f"- {limitation}")
 
-    st.divider()
-    st.header("Statistical Process Attribution")
-    st.caption(
-        "Finds processes whose activity statistically moves with system CPU, "
-        "available memory, or swap usage."
-    )
-    context = attribution["pressure_context"]
-    attribution_col1, attribution_col2, attribution_col3 = st.columns(3)
-    attribution_col1.metric("Samples collected", attribution["window_samples"])
-    attribution_col2.metric("CPU-pressure samples", context["cpu_pressure_samples"])
-    attribution_col3.metric(
-        "Memory-pressure samples", context["memory_pressure_samples"]
-    )
-    if attribution["status"] == "insufficient_data":
-        st.info(
-            f"Collect at least {attribution['minimum_samples']} samples before "
-            "interpreting correlations."
-        )
-    else:
-        _show_attribution_findings(
-            "CPU attribution",
-            attribution["cpu_findings"],
-            "Pearson correlation between system CPU utilization and each process's "
-            "CPU utilization across the full observation window.",
-        )
-        _show_attribution_findings(
-            "Memory attribution",
-            attribution["memory_findings"],
-            "Pearson correlation between per-interval process RSS changes and "
-            "available RAM changes. A negative relationship means RSS growth "
-            "tends to coincide with falling available RAM.",
-        )
-        _show_attribution_findings(
-            "Swap attribution",
-            attribution["swap_findings"],
-            "Pearson correlation between per-interval process RSS changes and "
-            "system swap-used changes.",
-        )
-    with st.expander("How to interpret these results"):
-        st.write(attribution["message"])
-        for limitation in attribution["limitations"]:
-            st.write(f"- {limitation}")
-
     cpu_card, memory_card, swap_card, process_card = st.columns(4)
     cpu_card.metric("CPU", f'{snapshot["cpu_percent"]:.1f}%')
     memory_card.metric("RAM used", f'{snapshot["memory"]["percent"]:.1f}%')
