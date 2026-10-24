@@ -1,8 +1,9 @@
 # OS Performance Observatory
 
-The current implementation is the live monitoring slice: a `psutil` collector
-and a Streamlit dashboard. It reports resource metrics and top processes; it
-does not yet detect anomalies, diagnose bottlenecks, or recommend actions.
+The current implementation includes a `psutil` collector, a Streamlit
+dashboard, a rule-based health indicator, and an evidence-based assessment of
+possible CPU and memory pressure. It does not confirm performance bottlenecks
+or recommend automated corrective actions.
 
 ## Requirements
 
@@ -74,6 +75,48 @@ CPU pressure is assessed over consecutive samples to avoid classifying a single 
 
 The indicator is a simplified, rule-based assessment of selected resource metrics. It does not establish the root cause of a performance problem or represent universal system health. Its results depend on the configured thresholds, sampling interval, operating system, workload, and available metrics.
 
+## CPU and Memory Bottleneck Assessment
+
+The assessment analyzes recent system metrics to identify evidence of possible
+CPU or memory pressure. It reports separate CPU and memory findings, supporting
+observations, and recommended investigation steps.
+
+### Initial assessment rules
+
+**CPU**
+
+- CPU utilization at or above 80% for three consecutive samples indicates
+  possible CPU pressure.
+- A high current reading without enough sustained samples is reported as
+  possible transient CPU pressure. Missing or invalid readings produce an
+  insufficient-evidence result.
+- High utilization does not establish that CPU activity is causing an
+  application performance problem.
+
+**Memory**
+
+- Available RAM at or below 20% of total RAM is treated as a low-memory
+  indicator.
+- Low available RAM combined with high RAM utilization, elevated swap usage,
+  or increasing swap usage provides stronger evidence of possible memory
+  pressure. At or below 10% available RAM is the critical low-memory range.
+- High RAM utilization or swap usage alone does not establish a bottleneck.
+- Missing or invalid required metrics produce an insufficient-evidence result.
+
+The thresholds and sample counts are project-defined defaults in
+`BOTTLENECK_CONFIG` in `config.py`, separate from the health-indicator
+thresholds. The dashboard samples every two seconds, so three consecutive CPU
+samples represent approximately six seconds of observed pressure, depending
+on collection and rendering time.
+
+### Output and limitations
+
+Each assessment includes a status, evidence, a recommended next step, and an
+explicit limitation. The analyzer does not return a “Confirmed bottleneck”
+status: confirmation requires evidence of actual performance impact, such as
+increased application response time or slower task completion, alongside
+further investigation.
+
 ## Run tests
 
 ```bash
@@ -89,10 +132,12 @@ Overall CPU percentage depends on the number of available CPU cores.
 ## Implementation boundaries
 
 - `collector.py` owns operating-system sampling and returns plain dictionaries.
-- `app.py` renders the dashboard and keeps short-lived chart history in the
-  Streamlit session; no database persistence or diagnosis logic is present.
-- `tests/` exercises collector output and process ranking without depending on
-  live machine metrics.
+- `app.py` renders the dashboard and keeps short-lived metric history in the
+  Streamlit session; it does not persist data.
+- `health.py` and `analyzer.py` evaluate configured pressure indicators but do
+  not diagnose or confirm performance bottlenecks.
+- `tests/` covers the collector, health indicator, and assessment logic using
+  synthetic metrics where appropriate.
 
 This separation gives future analyzer, recommendation, and storage modules a
 stable snapshot interface to integrate with.

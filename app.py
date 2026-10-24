@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
 
+from analyzer import assess_bottlenecks
 from collector import collect_snapshot
 from health import evaluate_health
 
@@ -58,11 +59,18 @@ def render_dashboard() -> None:
             "sampled_at": snapshot["sampled_at"],
             "CPU (%)": snapshot["cpu_percent"],
             "Memory (%)": snapshot["memory"]["percent"],
+            "Available RAM (%)": (
+                snapshot["memory"]["available"] / snapshot["memory"]["total"] * 100
+                if snapshot["memory"]["total"] > 0
+                else None
+            ),
+            "Swap (%)": snapshot["swap"]["percent"],
         }
     )
     del history[:-HISTORY_LIMIT]
 
     health = evaluate_health(snapshot, history)
+    bottlenecks = assess_bottlenecks(snapshot, history)
     st.subheader("System Health")
     status = health["status"]
     if status == "Critical":
@@ -84,6 +92,40 @@ def render_dashboard() -> None:
     with st.expander("Why was this status assigned?"):
         for reason in health["reasons"]:
             st.write(f"- {reason}")
+
+    st.divider()
+    st.subheader("CPU and Memory Bottleneck Assessment")
+    st.caption(
+        "Resource pressure is an indicator, not proof of a performance bottleneck."
+    )
+    cpu_assessment_col, memory_assessment_col = st.columns(2)
+    for col, title, result in (
+        (cpu_assessment_col, "CPU Assessment", bottlenecks["cpu"]),
+        (memory_assessment_col, "Memory Assessment", bottlenecks["memory"]),
+    ):
+        with col:
+            with st.container(border=True):
+                st.markdown(f"**{title}**")
+                status = result["status"]
+                if status in {
+                    "Possible CPU pressure",
+                    "Possible transient CPU pressure",
+                    "Possible memory pressure",
+                    "Low available memory",
+                    "Memory indicators elevated",
+                }:
+                    st.warning(status)
+                elif status == "Insufficient evidence":
+                    st.info(status)
+                else:
+                    st.success(status)
+                st.markdown("**Evidence**")
+                for item in result["evidence"]:
+                    st.write(f"- {item}")
+                st.markdown("**Recommended next step**")
+                st.write(result["recommendation"])
+                st.caption(result["limitation"])
+    st.caption(bottlenecks["overall_note"])
 
     cpu_card, memory_card, swap_card, process_card = st.columns(4)
     cpu_card.metric("CPU", f'{snapshot["cpu_percent"]:.1f}%')
