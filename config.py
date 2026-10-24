@@ -30,3 +30,21 @@ BOTTLENECK_CONFIG = {
     # Number of recent samples required for a trend comparison
     "swap_trend_samples": 3,
 }
+
+PROCESS_ATTRIBUTION_CONFIG = {
+    # A system sample counts as CPU pressure above this level.
+    "cpu_pressure_threshold": 80.0,
+    # Memory-pressure context thresholds.
+    "available_memory_threshold": 20.0,
+    "memory_usage_threshold": 90.0,
+    "swap_usage_threshold": 50.0,
+    # Statistical requirements.
+    "minimum_samples": 15,
+    "max_history_samples": 120,
+    # Display settings.
+    "top_findings": 5,
+    "top_process_count": 3,
+    # Heuristic correlation-strength boundaries.
+    "strong_correlation": 0.70,
+    "moderate_correlation": 0.40,
+}
