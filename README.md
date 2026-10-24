@@ -42,8 +42,10 @@ python -c "from collector import collect_snapshot; print(collect_snapshot())"
 ```
 
 Each snapshot includes a UTC timestamp, CPU utilization, RAM and swap metrics,
-the number of processes currently reported as running, and separate CPU- and
-memory-ranked process lists. CPU values are interval-based, so the initial
+the number of processes currently reported as running, all accessible process
+records, and separate CPU- and memory-ranked process lists. Process records
+include PID, process creation time, CPU utilization, resident memory (RSS) in
+bytes, and memory utilization. CPU values are interval-based, so the initial
 reading can be zero. Processes may exit or become inaccessible during a
 sample and are skipped.
 
@@ -117,6 +119,52 @@ status: confirmation requires evidence of actual performance impact, such as
 increased application response time or slower task completion, alongside
 further investigation.
 
+## Feature D: Statistical Process Attribution
+
+### Objective
+
+Identify processes whose CPU and memory behavior is statistically associated
+with changes in system resource utilization. This feature reports associations,
+not proof that a process caused a performance problem.
+
+### Methodology
+
+- Collect timestamped system metrics and all accessible process metrics.
+- Retain a rolling history of up to 120 snapshots in Streamlit session state.
+- Use Pearson's correlation coefficient for system CPU utilization versus
+  process CPU utilization across the full observation window.
+- Compare adjacent changes in process RSS with changes in available RAM and
+  swap used.
+- Identify process instances using PID and creation time when available to
+  reduce errors caused by PID reuse.
+- Display correlation coefficient, strength, direction, sample count, system
+  pressure context, and supporting top-three process overlap.
+
+By default, analysis requires at least 15 valid paired observations. The
+dashboard considers CPU at or above 80% to be CPU pressure. Memory pressure
+context is low available RAM (20% or less), or RAM utilization of at least 90%
+alongside swap utilization of at least 50%. Correlation strength boundaries,
+pressure thresholds, and history limits are configurable in
+`PROCESS_ATTRIBUTION_CONFIG` in `config.py`; these are project-defined
+heuristics, not universal standards.
+
+### Interpretation and limitations
+
+A positive CPU correlation means system CPU and process CPU tend to rise
+together. A negative RSS/available-RAM correlation means process memory growth
+tends to coincide with falling available RAM. A positive RSS/swap correlation
+means process memory growth tends to coincide with rising swap use.
+
+Pearson correlation is undefined when there are too few valid samples or no
+variation in either variable. Missing process observations are treated as zero
+for CPU series in this baseline, which can be misleading if a process was
+inaccessible rather than stopped. Memory changes are compared only when the
+same process instance is observed in both adjacent snapshots. Memory RSS,
+available RAM, and swap are also related through system memory accounting.
+Correlation does not establish causation or user-visible performance impact;
+results depend on the observation window, sampling frequency, process
+visibility, and metric variation.
+
 ## Run tests
 
 ```bash
@@ -136,6 +184,8 @@ Overall CPU percentage depends on the number of available CPU cores.
   Streamlit session; it does not persist data.
 - `health.py` and `analyzer.py` evaluate configured pressure indicators but do
   not diagnose or confirm performance bottlenecks.
+- `attribution.py` calculates statistical associations from retained snapshots
+  without claiming causation.
 - `tests/` covers the collector, health indicator, and assessment logic using
   synthetic metrics where appropriate.
 

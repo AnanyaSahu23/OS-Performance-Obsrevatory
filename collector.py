@@ -9,7 +9,9 @@ import psutil
 ProcessMetrics = Dict[str, Any]
 
 
-def _collect_processes(limit: int) -> Tuple[int, List[ProcessMetrics], List[ProcessMetrics]]:
+def _collect_processes(
+    limit: int,
+) -> Tuple[int, List[ProcessMetrics], List[ProcessMetrics], List[ProcessMetrics]]:
     if limit < 1:
         raise ValueError("limit must be at least 1")
 
@@ -17,7 +19,7 @@ def _collect_processes(limit: int) -> Tuple[int, List[ProcessMetrics], List[Proc
     running_process_count = 0
 
     for proc in psutil.process_iter(
-        ["pid", "name", "memory_percent", "memory_info", "status"]
+        ["pid", "create_time", "name", "memory_percent", "memory_info", "status"]
     ):
         try:
             info = proc.info
@@ -29,6 +31,7 @@ def _collect_processes(limit: int) -> Tuple[int, List[ProcessMetrics], List[Proc
             processes.append(
                 {
                     "pid": info["pid"],
+                    "create_time": info.get("create_time"),
                     "name": info.get("name") or "Unknown",
                     "cpu_percent": round(proc.cpu_percent(interval=None), 2),
                     "memory_percent": round(info.get("memory_percent") or 0.0, 2),
@@ -50,12 +53,12 @@ def _collect_processes(limit: int) -> Tuple[int, List[ProcessMetrics], List[Proc
     top_memory = sorted(
         processes, key=lambda process: process["memory_rss"], reverse=True
     )[:limit]
-    return running_process_count, top_cpu, top_memory
+    return running_process_count, processes, top_cpu, top_memory
 
 
 def get_top_processes(limit: int = 10) -> Dict[str, List[ProcessMetrics]]:
     """Return processes ranked separately by CPU usage and resident memory."""
-    _, top_cpu, top_memory = _collect_processes(limit)
+    _, _, top_cpu, top_memory = _collect_processes(limit)
     return {"top_cpu": top_cpu, "top_memory": top_memory}
 
 
@@ -65,7 +68,7 @@ def collect_snapshot(limit: int = 10) -> Dict[str, Any]:
     CPU percentages are interval-based. The first reading may be zero; compare
     subsequent snapshots for useful CPU utilization and per-process readings.
     """
-    running_process_count, top_cpu, top_memory = _collect_processes(limit)
+    running_process_count, processes, top_cpu, top_memory = _collect_processes(limit)
     memory = psutil.virtual_memory()
     swap = psutil.swap_memory()
 
@@ -84,6 +87,7 @@ def collect_snapshot(limit: int = 10) -> Dict[str, Any]:
             "percent": swap.percent,
         },
         "running_process_count": running_process_count,
+        "processes": processes,
         "top_cpu": top_cpu,
         "top_memory": top_memory,
     }
