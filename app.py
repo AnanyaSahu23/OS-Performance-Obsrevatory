@@ -7,6 +7,7 @@ import streamlit as st
 
 from analyzer import assess_bottlenecks
 from collector import collect_snapshot
+from diagnosis import build_diagnoses
 from health import evaluate_health
 
 
@@ -20,8 +21,8 @@ st.set_page_config(
 )
 st.title("OS Performance Observatory")
 st.caption(
-    "Real-time system monitoring. This dashboard reports metrics; "
-    "it does not diagnose bottlenecks."
+    "Evidence-based indicators of possible resource pressure. "
+    "Findings do not confirm a performance bottleneck."
 )
 
 
@@ -71,6 +72,7 @@ def render_dashboard() -> None:
 
     health = evaluate_health(snapshot, history)
     bottlenecks = assess_bottlenecks(snapshot, history)
+    diagnoses = build_diagnoses(snapshot, health, bottlenecks, history)
     st.subheader("System Health")
     status = health["status"]
     if status == "Critical":
@@ -99,9 +101,9 @@ def render_dashboard() -> None:
         "Resource pressure is an indicator, not proof of a performance bottleneck."
     )
     cpu_assessment_col, memory_assessment_col = st.columns(2)
-    for col, title, result in (
-        (cpu_assessment_col, "CPU Assessment", bottlenecks["cpu"]),
-        (memory_assessment_col, "Memory Assessment", bottlenecks["memory"]),
+    for col, title, resource, result in (
+        (cpu_assessment_col, "CPU Assessment", "cpu", bottlenecks["cpu"]),
+        (memory_assessment_col, "Memory Assessment", "memory", bottlenecks["memory"]),
     ):
         with col:
             with st.container(border=True):
@@ -119,12 +121,29 @@ def render_dashboard() -> None:
                     st.info(status)
                 else:
                     st.success(status)
+                diagnosis = next(
+                    item
+                    for item in diagnoses
+                    if item["condition"] == f"{resource}_pressure"
+                )
                 st.markdown("**Evidence**")
-                for item in result["evidence"]:
+                for item in diagnosis["evidence"]:
                     st.write(f"- {item}")
                 st.markdown("**Recommended next step**")
                 st.write(result["recommendation"])
-                st.caption(result["limitation"])
+                if diagnosis["duration_seconds"] is not None:
+                    st.caption(
+                        "Observed condition duration: "
+                        f'{diagnosis["duration_seconds"]:.1f} seconds.'
+                    )
+                if diagnosis["observed_processes"]:
+                    st.markdown("**Observed resource consumers (not proven causes)**")
+                    st.dataframe(
+                        _process_table(diagnosis["observed_processes"]),
+                        hide_index=True,
+                        use_container_width=True,
+                    )
+                st.caption(diagnosis["limitation"])
     st.caption(bottlenecks["overall_note"])
 
     cpu_card, memory_card, swap_card, process_card = st.columns(4)

@@ -29,4 +29,6 @@ BOTTLENECK_CONFIG = {
     "swap_usage_high": 50.0,
     # Number of recent samples required for a trend comparison
     "swap_trend_samples": 3,
+    # Used only when sample timestamps are unavailable for duration estimates
+    "sample_interval_seconds": 2,
 }
