@@ -39,7 +39,7 @@ def evaluate_health(metrics, history, config=None):
     cpu_percent = _as_float(metrics.get("cpu_percent"), 0.0)
     available_ram = _as_float(memory.get("available"), 0.0)
     memory_percent = _as_float(memory.get("percent"), 0.0)
-    swap_percent = _as_float(swap.get("percent"), 0.0)
+    swap_percent = _as_float(swap.get("percent"), None)
     available_memory_percent = (available_ram / total_ram) * 100.0
 
     warnings = []
@@ -98,12 +98,20 @@ def evaluate_health(metrics, history, config=None):
 
     swap_warning_memory = config.get("swap_warning_memory", 85.0)
     swap_critical_memory = config.get("swap_critical_memory", 90.0)
-    if swap_percent >= config.get("swap_critical", 80.0) and memory_percent >= swap_critical_memory:
+    if (
+        swap_percent is not None
+        and swap_percent >= config.get("swap_critical", 80.0)
+        and memory_percent >= swap_critical_memory
+    ):
         critical_reasons.append(
             f"Swap usage is {swap_percent:.1f}% with RAM utilization at {memory_percent:.1f}% "
             f"(critical threshold: >= {config.get('swap_critical', 80.0)}% with RAM utilization >= {swap_critical_memory}%)."
         )
-    elif swap_percent >= config.get("swap_warning", 50.0) and memory_percent >= swap_warning_memory:
+    elif (
+        swap_percent is not None
+        and swap_percent >= config.get("swap_warning", 50.0)
+        and memory_percent >= swap_warning_memory
+    ):
         warnings.append(
             f"Swap usage is {swap_percent:.1f}% with RAM utilization at {memory_percent:.1f}% "
             f"(warning threshold: >= {config.get('swap_warning', 50.0)}% with RAM utilization >= {swap_warning_memory}%)."
@@ -123,7 +131,9 @@ def evaluate_health(metrics, history, config=None):
         "CPU": round(cpu_percent, 2),
         "Available RAM": round(available_memory_percent, 2),
         "RAM utilization": round(memory_percent, 2),
-        "Swap utilization": round(swap_percent, 2),
+        "Swap utilization": (
+            round(swap_percent, 2) if swap_percent is not None else None
+        ),
     }
 
     return {

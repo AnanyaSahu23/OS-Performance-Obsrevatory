@@ -70,7 +70,17 @@ def collect_snapshot(limit: int = 10) -> Dict[str, Any]:
     """
     running_process_count, processes, top_cpu, top_memory = _collect_processes(limit)
     memory = psutil.virtual_memory()
-    swap = psutil.swap_memory()
+    try:
+        swap = psutil.swap_memory()
+        swap_metrics = {
+            "total": swap.total,
+            "used": swap.used,
+            "percent": swap.percent,
+        }
+    except (psutil.Error, OSError, RuntimeError):
+        # Some Windows environments disable the performance counter psutil
+        # uses for page-file statistics. Keep the rest of the snapshot usable.
+        swap_metrics = {"total": None, "used": None, "percent": None}
 
     return {
         "sampled_at": datetime.now(timezone.utc).isoformat(),
@@ -81,11 +91,7 @@ def collect_snapshot(limit: int = 10) -> Dict[str, Any]:
             "available": memory.available,
             "percent": memory.percent,
         },
-        "swap": {
-            "total": swap.total,
-            "used": swap.used,
-            "percent": swap.percent,
-        },
+        "swap": swap_metrics,
         "running_process_count": running_process_count,
         "processes": processes,
         "top_cpu": top_cpu,

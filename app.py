@@ -153,7 +153,10 @@ def render_dashboard() -> None:
     st.markdown("**Contributing indicators**")
     indicator_cols = st.columns(4)
     for col, (name, value) in zip(indicator_cols, health["indicators"].items()):
-        col.metric(name, f"{value:.1f}%")
+        col.metric(
+            name,
+            "Unavailable" if value is None else f"{value:.1f}%",
+        )
     with st.expander("Why was this status assigned?"):
         for reason in health["reasons"]:
             st.write(f"- {reason}")
@@ -264,7 +267,11 @@ def render_dashboard() -> None:
     cpu_card, memory_card, swap_card, process_card = st.columns(4)
     cpu_card.metric("CPU", f'{snapshot["cpu_percent"]:.1f}%')
     memory_card.metric("RAM used", f'{snapshot["memory"]["percent"]:.1f}%')
-    swap_card.metric("Swap used", f'{snapshot["swap"]["percent"]:.1f}%')
+    swap_percent = snapshot["swap"]["percent"]
+    swap_card.metric(
+        "Swap used",
+        "Unavailable" if swap_percent is None else f"{swap_percent:.1f}%",
+    )
     process_card.metric("Running processes", snapshot["running_process_count"])
 
     memory_col, available_col, swap_detail_col = st.columns(3)
@@ -274,9 +281,12 @@ def render_dashboard() -> None:
         f'{_format_gb(snapshot["memory"]["total"])}',
     )
     available_col.metric("RAM available", _format_gb(snapshot["memory"]["available"]))
+    swap_used = snapshot["swap"]["used"]
+    swap_total = snapshot["swap"]["total"]
     swap_col_text = (
-        f'{_format_gb(snapshot["swap"]["used"])} / '
-        f'{_format_gb(snapshot["swap"]["total"])}'
+        "Unavailable"
+        if swap_used is None or swap_total is None
+        else f"{_format_gb(swap_used)} / {_format_gb(swap_total)}"
     )
     swap_detail_col.metric("Swap used / total", swap_col_text)
     st.caption(f'Latest sample: {snapshot["sampled_at"]} (UTC)')
@@ -292,9 +302,15 @@ def render_dashboard() -> None:
                 "swap_percent": "Swap (%)",
             }
         )
+        chart_data = chart_data.apply(pd.to_numeric, errors="coerce")
+        chart_columns = [
+            name
+            for name in ("CPU (%)", "Memory (%)", "Swap (%)")
+            if chart_data[name].notna().any()
+        ]
         st.line_chart(
             chart_data,
-            y=["CPU (%)", "Memory (%)", "Swap (%)"],
+            y=chart_columns,
             height=260,
         )
     else:
