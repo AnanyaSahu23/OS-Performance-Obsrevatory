@@ -46,6 +46,34 @@ memory-ranked process lists. CPU values are interval-based, so the initial
 reading can be zero. Processes may exit or become inaccessible during a
 sample and are skipped.
 
+## System Health Indicator
+
+The System Health Indicator classifies the observed system as Healthy, Warning, or Critical using configurable resource-pressure thresholds.
+
+### Initial threshold configuration
+
+| Indicator | Warning | Critical |
+| --- | --- | --- |
+| CPU utilization | >= 80% for 3 consecutive samples | >= 95% for 3 consecutive samples |
+| Available RAM | <= 20% | <= 10% |
+| RAM utilization | >= 90% | >= 95% |
+| Swap utilization | >= 50% with RAM utilization >= 85% | >= 80% with RAM utilization >= 90% |
+
+The thresholds are defined in `config.py` and can be adjusted for different testing environments.
+
+### Decision rules
+
+- Critical: At least one critical condition is met.
+- Warning: No critical condition is met, but at least one warning condition is met.
+- Healthy: No configured warning or critical condition is detected.
+- Unknown: Required RAM information is invalid or unavailable.
+
+CPU pressure is assessed over consecutive samples to avoid classifying a single spike as sustained pressure. Swap utilization is evaluated alongside RAM pressure rather than in isolation.
+
+### Limitations
+
+The indicator is a simplified, rule-based assessment of selected resource metrics. It does not establish the root cause of a performance problem or represent universal system health. Its results depend on the configured thresholds, sampling interval, operating system, workload, and available metrics.
+
 ## Run tests
 
 ```bash

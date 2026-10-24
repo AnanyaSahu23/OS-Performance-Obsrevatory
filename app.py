@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from collector import collect_snapshot
+from health import evaluate_health
 
 
 HISTORY_LIMIT = 60
@@ -17,7 +18,10 @@ st.set_page_config(
     layout="wide",
 )
 st.title("OS Performance Observatory")
-st.caption("Real-time system monitoring. This dashboard reports metrics; it does not diagnose bottlenecks.")
+st.caption(
+    "Real-time system monitoring. This dashboard reports metrics; "
+    "it does not diagnose bottlenecks."
+)
 
 
 def _format_gb(value: int) -> str:
@@ -57,6 +61,29 @@ def render_dashboard() -> None:
         }
     )
     del history[:-HISTORY_LIMIT]
+
+    health = evaluate_health(snapshot, history)
+    st.subheader("System Health")
+    status = health["status"]
+    if status == "Critical":
+        st.error("CRITICAL: Significant resource pressure detected.")
+    elif status == "Warning":
+        st.warning("WARNING: Possible resource pressure detected.")
+    elif status == "Healthy":
+        st.success("HEALTHY: No configured pressure thresholds breached.")
+    else:
+        st.info("UNKNOWN: Health could not be evaluated.")
+    st.caption(
+        "This status reflects configurable resource thresholds. "
+        "It is not a universal measure of system health."
+    )
+    st.markdown("**Contributing indicators**")
+    indicator_cols = st.columns(4)
+    for col, (name, value) in zip(indicator_cols, health["indicators"].items()):
+        col.metric(name, f"{value:.1f}%")
+    with st.expander("Why was this status assigned?"):
+        for reason in health["reasons"]:
+            st.write(f"- {reason}")
 
     cpu_card, memory_card, swap_card, process_card = st.columns(4)
     cpu_card.metric("CPU", f'{snapshot["cpu_percent"]:.1f}%')
