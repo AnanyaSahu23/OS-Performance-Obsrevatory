@@ -9,6 +9,7 @@ from analyzer import assess_bottlenecks
 from collector import collect_snapshot
 from diagnosis import build_diagnoses
 from health import evaluate_health
+from recommendations import build_recommendations
 
 
 HISTORY_LIMIT = 60
@@ -73,6 +74,7 @@ def render_dashboard() -> None:
     health = evaluate_health(snapshot, history)
     bottlenecks = assess_bottlenecks(snapshot, history)
     diagnoses = build_diagnoses(snapshot, health, bottlenecks, history)
+    recommendations = build_recommendations(diagnoses)
     st.subheader("System Health")
     status = health["status"]
     if status == "Critical":
@@ -129,8 +131,13 @@ def render_dashboard() -> None:
                 st.markdown("**Evidence**")
                 for item in diagnosis["evidence"]:
                     st.write(f"- {item}")
-                st.markdown("**Recommended next step**")
-                st.write(result["recommendation"])
+                recommendation = next(
+                    item
+                    for item in recommendations
+                    if item["condition"] == diagnosis["condition"]
+                )
+                st.markdown(f'**Next step · {recommendation["priority"]}**')
+                st.write(recommendation["message"])
                 if diagnosis["duration_seconds"] is not None:
                     st.caption(
                         "Observed condition duration: "

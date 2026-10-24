@@ -32,3 +32,90 @@ BOTTLENECK_CONFIG = {
     # Used only when sample timestamps are unavailable for duration estimates
     "sample_interval_seconds": 2,
 }
+
+# Stable machine-readable labels for the analyzer's human-readable statuses.
+DIAGNOSIS_STATUS_CODES = {
+    "Possible CPU pressure": "possible_sustained_pressure",
+    "Possible transient CPU pressure": "possible_transient_pressure",
+    "No sustained CPU pressure detected": "no_persistent_pressure",
+    "Possible memory pressure": "possible_corroborated_pressure",
+    "Low available memory": "low_available_memory",
+    "Memory indicators elevated": "elevated_indicators_only",
+    "No significant memory pressure detected": "no_significant_pressure",
+    "Insufficient evidence": "insufficient_evidence",
+}
+
+PRESSURE_STATUS_CODES = {
+    "possible_sustained_pressure",
+    "possible_transient_pressure",
+    "possible_corroborated_pressure",
+    "low_available_memory",
+    "elevated_indicators_only",
+}
+
+# Informational guidance only: the application never performs these actions.
+# Keys are (diagnosis condition, status code), values are editable rules.
+RECOMMENDATION_RULES = {
+    ("cpu_pressure", "possible_sustained_pressure"): {
+        "priority": "Review",
+        "message": (
+            "Check whether the top CPU-consuming workloads are expected. "
+            "Compare CPU activity with application response times or task completion times."
+        ),
+    },
+    ("cpu_pressure", "possible_transient_pressure"): {
+        "priority": "Monitor",
+        "message": (
+            "Continue monitoring. Check application timings if the high CPU reading "
+            "persists or performance is affected."
+        ),
+    },
+    ("cpu_pressure", "no_persistent_pressure"): {
+        "priority": "Informational",
+        "message": (
+            "No persistent CPU pressure is indicated by these rules. If slowness remains, "
+            "compare application timings with other resource indicators."
+        ),
+    },
+    ("memory_pressure", "possible_corroborated_pressure"): {
+        "priority": "Review",
+        "message": (
+            "Review memory use by the largest observed processes and check application "
+            "response times before attributing the issue to memory pressure."
+        ),
+    },
+    ("memory_pressure", "low_available_memory"): {
+        "priority": "Monitor",
+        "message": (
+            "Monitor available RAM and swap. Review memory-heavy workloads before "
+            "deciding whether action is needed."
+        ),
+    },
+    ("memory_pressure", "elevated_indicators_only"): {
+        "priority": "Monitor",
+        "message": (
+            "Continue monitoring RAM, swap, and application performance. Elevated "
+            "indicators alone do not prove a bottleneck."
+        ),
+    },
+    ("memory_pressure", "no_significant_pressure"): {
+        "priority": "Informational",
+        "message": (
+            "No combined memory-pressure indicators are present. If slowness remains, "
+            "compare application timings with other resource indicators."
+        ),
+    },
+    ("cpu_pressure", "insufficient_evidence"): {
+        "priority": "Collect evidence",
+        "message": "Collect more valid CPU samples before drawing a conclusion.",
+    },
+    ("memory_pressure", "insufficient_evidence"): {
+        "priority": "Collect evidence",
+        "message": "Collect valid RAM and swap samples before drawing a conclusion.",
+    },
+}
+
+DEFAULT_RECOMMENDATION = {
+    "priority": "Informational",
+    "message": "Review the available evidence and continue monitoring.",
+}

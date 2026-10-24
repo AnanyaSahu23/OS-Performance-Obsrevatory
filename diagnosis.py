@@ -3,16 +3,12 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
-from config import BOTTLENECK_CONFIG, HEALTH_CONFIG
-
-
-PRESSURE_STATUSES = {
-    "Possible CPU pressure",
-    "Possible transient CPU pressure",
-    "Possible memory pressure",
-    "Low available memory",
-    "Memory indicators elevated",
-}
+from config import (
+    BOTTLENECK_CONFIG,
+    DIAGNOSIS_STATUS_CODES,
+    HEALTH_CONFIG,
+    PRESSURE_STATUS_CODES,
+)
 
 
 def _as_number(value: Any) -> Optional[float]:
@@ -103,7 +99,8 @@ def build_diagnoses(
     for resource, process_key in (("cpu", "top_cpu"), ("memory", "top_memory")):
         finding = assessment.get(resource, {})
         status = finding.get("status", "Insufficient evidence")
-        pressure = status in PRESSURE_STATUSES
+        status_code = DIAGNOSIS_STATUS_CODES.get(status, "unknown")
+        pressure = status_code in PRESSURE_STATUS_CODES
         severity = (
             "critical" if pressure and _critical_for_resource(resource, snapshot, history)
             else "warning" if pressure
@@ -111,14 +108,14 @@ def build_diagnoses(
         )
 
         duration = None
-        if resource == "cpu" and status == "Possible CPU pressure":
+        if resource == "cpu" and status_code == "possible_sustained_pressure":
             duration = _duration_seconds(
                 history,
                 "CPU (%)",
                 BOTTLENECK_CONFIG.get("cpu_pressure_threshold", 80.0),
                 above=True,
             )
-        elif resource == "memory" and status == "Possible memory pressure":
+        elif resource == "memory" and status_code == "possible_corroborated_pressure":
             memory = snapshot.get("memory") or {}
             total = _as_number(memory.get("total"))
             available = _as_number(memory.get("available"))
@@ -133,14 +130,18 @@ def build_diagnoses(
             {
                 "condition": f"{resource}_pressure",
                 "status": status,
+                "status_code": status_code,
                 "severity": severity,
                 "evidence_status": (
                     "corroborated_resource_indicators"
-                    if status in {"Possible CPU pressure", "Possible memory pressure"}
+                    if status_code in {
+                        "possible_sustained_pressure",
+                        "possible_corroborated_pressure",
+                    }
                     else "single_or_transient_indicator"
                     if pressure
                     else "insufficient"
-                    if status == "Insufficient evidence"
+                    if status_code == "insufficient_evidence"
                     else "no_pressure_indicated"
                 ),
                 "evidence": list(finding.get("evidence", [])),
