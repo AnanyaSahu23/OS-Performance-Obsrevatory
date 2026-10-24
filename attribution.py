@@ -183,9 +183,22 @@ def _make_finding(
     pressure_top_count, pressure_count = _top_pressure_overlap(
         identity, history, resource, config
     )
-    overlap = (
-        pressure_top_count / pressure_count * 100 if pressure_count else 0.0
+    overlap = pressure_top_count / pressure_count * 100 if pressure_count else None
+    evidence = (
+        f"{process.get('name') or 'Unknown'} had a {strength} {direction} "
+        f"relationship across {sample_count} paired observations."
     )
+    if pressure_count:
+        evidence += (
+            f" It ranked among the top {config['top_process_count']} "
+            f"{resource} consumers in {pressure_top_count} of {pressure_count} "
+            "relevant pressure samples."
+        )
+    else:
+        evidence += (
+            f" No {resource.lower()} pressure samples were observed, so "
+            "process overlap with pressure is not applicable."
+        )
     return {
         "name": process.get("name") or "Unknown",
         "pid": process.get("pid"),
@@ -196,13 +209,9 @@ def _make_finding(
         "interpretation": interpretation,
         "sample_count": sample_count,
         "top_pressure_samples": pressure_top_count,
-        "pressure_overlap_percent": round(overlap, 1),
-        "evidence": (
-            f"{process.get('name') or 'Unknown'} had a {strength} {direction} "
-            f"relationship across {sample_count} paired observations. It ranked "
-            f"among the top {config['top_process_count']} {resource} consumers in "
-            f"{pressure_top_count} of {pressure_count} relevant pressure samples."
-        ),
+        "pressure_sample_count": pressure_count,
+        "pressure_overlap_percent": round(overlap, 1) if overlap is not None else None,
+        "evidence": evidence,
     }
 
 

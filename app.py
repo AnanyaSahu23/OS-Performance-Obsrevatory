@@ -80,7 +80,9 @@ def _show_attribution_findings(
             "Direction": finding["direction"],
             "Samples": finding["sample_count"],
             "Top 3 during pressure": (
-                f'{finding["top_pressure_samples"]} '
+                "Not applicable (no pressure samples)"
+                if finding["pressure_sample_count"] == 0
+                else f'{finding["top_pressure_samples"]} '
                 f'({finding["pressure_overlap_percent"]:.1f}%)'
             ),
         }
@@ -89,7 +91,7 @@ def _show_attribution_findings(
     st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
     for finding in findings:
         with st.expander(
-            f'{finding["name"]} (PID {finding["pid"]}) — supporting evidence'
+            f'{finding["name"]} (PID {finding["pid"]}) - supporting evidence'
         ):
             st.write(finding["evidence"])
             st.write(f'Interpretation: {finding["interpretation"]}.')

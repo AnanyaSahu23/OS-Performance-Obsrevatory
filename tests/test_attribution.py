@@ -136,6 +136,19 @@ class ProcessAttributionTests(unittest.TestCase):
         self.assertIn("sample_count", finding)
         self.assertTrue(result["limitations"])
 
+    def test_pressure_overlap_is_not_applicable_when_no_pressure_was_observed(self):
+        history = [
+            make_snapshot(i, 20 + i, 3 + i, 100 + 2 * i, 700 - i, 10 + i)
+            for i in range(20)
+        ]
+        result = assess_process_attribution(history)
+        finding = result["cpu_findings"][0]
+
+        self.assertEqual(result["pressure_context"]["cpu_pressure_samples"], 0)
+        self.assertEqual(finding["pressure_sample_count"], 0)
+        self.assertIsNone(finding["pressure_overlap_percent"])
+        self.assertIn("overlap with pressure is not applicable", finding["evidence"])
+
 
 if __name__ == "__main__":
     unittest.main()
