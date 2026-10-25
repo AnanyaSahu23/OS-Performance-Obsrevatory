@@ -13,8 +13,8 @@ from diagnosis import build_diagnoses
 from dashboard_storage import storage_call
 from health import evaluate_health
 from recommendations import build_recommendations
+from reporting_ui import render_diagnosis_reports
 from storage import (
-    get_recent_diagnoses,
     get_recent_metrics,
     get_recent_health,
     ensure_database_initialized,
@@ -344,27 +344,7 @@ def render_dashboard() -> None:
     else:
         st.write("No historical health samples are available.")
 
-    st.subheader("Recent diagnosis changes")
-    diagnosis_events = (storage_call(get_recent_diagnoses, on_error=st.warning,
-                                    default=[]) if storage_ready else [])
-    if diagnosis_events:
-        st.dataframe(
-            [
-                {
-                    "Time (UTC)": event["recorded_at"],
-                    "Condition": event["condition"],
-                    "Status": event["status"],
-                    "Severity": event["severity"],
-                    "Evidence": event["evidence_status"],
-                    "Recommendation": event["recommendation"],
-                }
-                for event in diagnosis_events
-            ],
-            hide_index=True,
-            use_container_width=True,
-        )
-    else:
-        st.write("No diagnosis state changes have been recorded yet.")
+    render_diagnosis_reports(storage_ready)
 
     cpu_col, memory_process_col = st.columns(2)
     with cpu_col:
