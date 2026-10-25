@@ -418,29 +418,73 @@ def get_recent_metrics(
     return [dict(row) for row in reversed(rows)]
 
 
+def _report_utc(value):
+    try:
+        return _utc_timestamp(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _report_list(value):
+    try:
+        decoded = json.loads(value)
+    except (TypeError, ValueError):
+        return None
+    return decoded if isinstance(decoded, list) else None
+
+
 def get_recent_diagnoses(
-    limit: int = 20, database_path: Optional[str] = None
+    limit: int = 20, database_path: Optional[str] = None, *, include_metrics: bool = False
 ) -> List[Dict[str, Any]]:
-    """Return diagnosis transitions newest-first, with JSON fields decoded."""
+    """Return transitions newest-first; optionally enrich stored report records.
+
+    Reporting metrics must uniquely match last_seen_at (recorded_at for legacy
+    rows without it). Never substitute current or nearest-neighbor metrics.
+    The default retrieval and decoding behavior remains unchanged.
+    """
     if limit < 1:
         raise ValueError("limit must be at least 1")
     with _connection(database_path) as connection:
-        rows = connection.execute(
+        columns = """
+            d.recorded_at, d.condition, d.status_code, d.status, d.severity,
+            d.evidence_status, d.duration_seconds, d.evidence_json,
+            d.observed_processes_json, d.interpretation,
+            d.recommendation_priority, d.recommendation,
+            d.incident_started_at, d.last_seen_at, d.resolved_at,
+            d.incident_duration_seconds, d.duration_scope, d.onset_evidence_json
+        """
+        join = ""
+        ordering = "julianday(d.recorded_at) DESC, d.id DESC"
+        if include_metrics:
+            connection.create_function("_report_utc", 1, _report_utc, deterministic=True)
+            columns += """, d.id AS event_id, m.sampled_at AS metrics_sampled_at,
+                          m.cpu_percent, m.memory_percent, m.swap_percent"""
+            join = """
+                LEFT JOIN metric_samples AS m ON m.id = (
+                    SELECT MIN(candidate.id) FROM metric_samples AS candidate
+                    WHERE julianday(candidate.sampled_at) =
+                          julianday(COALESCE(d.last_seen_at, d.recorded_at))
+                      AND _report_utc(candidate.sampled_at) =
+                          _report_utc(COALESCE(d.last_seen_at, d.recorded_at))
+                    HAVING COUNT(*) = 1
+                )
             """
-            SELECT recorded_at, condition, status_code, status, severity,
-                   evidence_status, duration_seconds, evidence_json,
-                   observed_processes_json, interpretation,
-                    recommendation_priority, recommendation,
-                    incident_started_at, last_seen_at, resolved_at,
-                    incident_duration_seconds, duration_scope, onset_evidence_json
-            FROM diagnosis_events ORDER BY julianday(recorded_at) DESC, id DESC LIMIT ?
-            """,
+            ordering = "julianday(d.recorded_at) DESC, _report_utc(d.recorded_at) DESC, d.id DESC"
+        rows = connection.execute(
+            f"SELECT {columns} FROM diagnosis_events AS d {join} ORDER BY {ordering} LIMIT ?",
             (limit,),
         ).fetchall()
 
     results = []
     for row in rows:
         item = dict(row)
+        if include_metrics:
+            for encoded, decoded in (("evidence_json", "evidence"),
+                                     ("observed_processes_json", "observed_processes"),
+                                     ("onset_evidence_json", "onset_evidence")):
+                item[decoded] = _report_list(item.pop(encoded))
+            results.append(item)
+            continue
         item["evidence"] = json.loads(item.pop("evidence_json"))
         item["observed_processes"] = json.loads(
             item.pop("observed_processes_json")

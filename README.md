@@ -94,6 +94,13 @@ unusual utilization. A 0.5-percentage-point deviation floor handles flat history
 Configure these defaults in `BASELINE_CONFIG`. Results are separate from health
 and bottleneck classifications.
 
+## Diagnosis History and Reports
+
+View the latest 20, 100 or 500 stored diagnosis transitions and download the same
+records as CSV. Reports preserve evidence, recommendations and incident timestamps;
+metrics are included only for an exact, unambiguous stored observation match.
+Missing values stay blank. Listed processes are observed contributors, not proven causes.
+
 ## Feature D: Statistical Process Attribution
 
 ### Methodology
