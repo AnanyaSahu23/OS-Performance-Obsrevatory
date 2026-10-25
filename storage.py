@@ -383,12 +383,31 @@ def _elapsed_seconds(start: str, end: str) -> float:
 
 
 def get_recent_metrics(
-    limit: int = 60, database_path: Optional[str] = None
+    limit: int = 60, database_path: Optional[str] = None, *, before: Optional[str] = None
 ) -> List[Dict[str, Any]]:
-    """Return recent metric rows oldest-first for plotting."""
+    """Return recent rows oldest-first, optionally strictly before a sample.
+
+    The optional cutoff prevents current/future observations entering a baseline.
+    UTC normalization preserves legacy offsets and microsecond comparisons.
+    Existing calls without a cutoff retain the plotting contract.
+    """
     if limit < 1:
         raise ValueError("limit must be at least 1")
     with _connection(database_path) as connection:
+        if before is not None:
+            cutoff = _utc_timestamp(before)
+            connection.create_function("_observatory_utc", 1, _utc_timestamp, deterministic=True)
+            rows = connection.execute(
+                """
+                SELECT sampled_at, cpu_percent, memory_percent, swap_percent
+                FROM metric_samples
+                WHERE julianday(sampled_at) <= julianday(?)
+                  AND _observatory_utc(sampled_at) < ?
+                ORDER BY julianday(sampled_at) DESC, _observatory_utc(sampled_at) DESC, id DESC
+                LIMIT ?
+                """, (cutoff, cutoff, limit),
+            ).fetchall()
+            return [dict(row) for row in reversed(rows)]
         rows = connection.execute(
             """
             SELECT sampled_at, cpu_percent, memory_percent, swap_percent
