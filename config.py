@@ -169,3 +169,11 @@ PROCESS_ATTRIBUTION_CONFIG = {
     "strong_correlation": 0.70,
     "moderate_correlation": 0.40,
 }
+
+STRESS_TEST_CONFIG = {
+    "default_duration_seconds": 10,
+    "default_workers": 1,
+    "max_duration_seconds": 30,
+    "max_workers": 2,
+    "cleanup_timeout_seconds": 0.5,
+}
