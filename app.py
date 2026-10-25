@@ -13,6 +13,7 @@ from diagnosis import build_diagnoses
 from dashboard_storage import storage_call
 from health import evaluate_health
 from recommendations import build_recommendations
+from stress_ui import render_stress_controls
 from storage import (
     get_recent_diagnoses,
     get_recent_metrics,
@@ -100,6 +101,8 @@ def _show_attribution_findings(
 
 @st.fragment(run_every=REFRESH_SECONDS)
 def render_dashboard() -> None:
+    render_stress_controls()
+    st.divider()
     snapshot = collect_snapshot()
 
     if "system_sample_history" not in st.session_state:

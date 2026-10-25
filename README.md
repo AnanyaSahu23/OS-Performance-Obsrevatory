@@ -108,6 +108,14 @@ Constant or insufficient data cannot produce meaningful correlations. Missing
 process CPU observations are treated as zero, which can distort results when a
 process is inaccessible rather than stopped.
 
+## Controlled Stress Test
+
+Use the dashboard's Start/Stop controls for a bounded CPU demonstration: default
+10 seconds and one worker, limited to 30 seconds and two workers (or available CPUs).
+Workers expire independently and are cleaned up by the controller. Configuration
+is in `STRESS_TEST_CONFIG`. One test can run per server process across its sessions;
+the existing pipeline displays actual observations without guaranteeing pressure detection.
+
 ## Run tests
 
 ```bash
