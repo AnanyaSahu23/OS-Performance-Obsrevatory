@@ -1,22 +1,30 @@
 # OS Performance Observatory
 
 The current implementation includes a `psutil` collector, a Streamlit
-dashboard, a rule-based health indicator, and an evidence-based assessment of
-possible CPU and memory pressure. It does not confirm performance bottlenecks
-or recommend automated corrective actions.
+dashboard, a rule-based health indicator, evidence-based CPU and memory
+assessments, structured diagnosis records, configurable informational
+recommendations, and SQLite history for metric samples and diagnosis changes.
+It does not confirm performance bottlenecks or take corrective action.
 
 ## Requirements
 
-- Python 3.11 or newer (recommended)
+- **Python 3.11+ required** (`storage.py` uses SQLite error-code attributes added in Python 3.11)
 - Linux/Ubuntu for the intended target platform
 - Dependencies from `requirements.txt`
 
-SQLite, `/proc` access, and CSV support can be added later using Python's
-standard library; no extra packages are needed for them.
+SQLite support uses Python's standard-library `sqlite3` module. System metrics
+are collected through `psutil`.
+
+WSL is not required. The intended target is Linux, including native Ubuntu,
+Ubuntu under WSL 2, Ubuntu virtual machines, and compatible Linux distributions.
+Linux VMs monitor guest resources, not the macOS or Windows host.
 
 ## Setup
 
-From the repository root:
+From the repository root, check `python3 --version`; it must report 3.11 or newer.
+If `python3` is older, use an installed Python 3.11+ interpreter (for example,
+`python3.11`) in the virtual-environment creation command. Ensure that interpreter's
+virtual-environment support is installed.
 
 ```bash
 python3 -m venv .venv
@@ -25,6 +33,12 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
+The default SQLite location is `data/observatory.sqlite3` relative to the repository.
+Ensure this directory is writable, or set `STORAGE_CONFIG["database_path"]` in
+`config.py` to another writable local location. The directory must allow SQLite
+to create its database, WAL and shared-memory files. Use a local filesystem rather
+than a network or VM-shared folder.
+
 ## Run the dashboard
 
 ```bash
@@ -32,8 +46,8 @@ streamlit run app.py
 ```
 
 Open the local URL printed by Streamlit (usually <http://localhost:8501>).
-The dashboard refreshes every two seconds and retains up to 60 observations
-per browser session.
+The dashboard refreshes every two seconds, retains a short in-session window
+for live analysis, and stores metric samples and diagnosis changes in SQLite.
 
 ## Check the collector
 
@@ -108,8 +122,8 @@ observations, and recommended investigation steps.
 The thresholds and sample counts are project-defined defaults in
 `BOTTLENECK_CONFIG` in `config.py`, separate from the health-indicator
 thresholds. The dashboard samples every two seconds, so three consecutive CPU
-samples represent approximately six seconds of observed pressure, depending
-on collection and rendering time.
+samples span approximately four seconds between the first and last observation,
+depending on collection and rendering time.
 
 ### Output and limitations
 
@@ -118,6 +132,66 @@ explicit limitation. The analyzer does not return a “Confirmed bottleneck”
 status: confirmation requires evidence of actual performance impact, such as
 increased application response time or slower task completion, alongside
 further investigation.
+
+## Diagnosis and recommendations
+
+`diagnosis.py` converts analyzer findings into structured records containing
+condition, status, severity, evidence status, supporting evidence, observed
+processes, and a duration estimate when the sample history supports one.
+Observed top processes are presented as resource consumers, not as proven
+causes. Missing duration evidence remains unavailable rather than being
+invented.
+
+`duration_scope` identifies the metric window being measured. Memory duration
+measures **low available RAM**, including when low RAM predates corroborating
+swap or utilization evidence; it does not assert that the combined pressure
+condition persisted for that entire interval. Unknown analyzer statuses remain
+unknown. Missing process lists leave the other diagnosis evidence usable.
+
+`recommendations.py` selects informational next steps using configurable rules
+in `config.py`. Recommendations do not terminate processes or alter system
+settings. Edit `RECOMMENDATION_RULES` to tune wording or add rules.
+The dashboard uses this dedicated engine as its recommendation authority.
+The analyzer retains its original generic recommendation strings for existing
+callers; those strings are not a second dashboard recommendation path. Structured
+swap evidence selects rising-swap or elevated-swap guidance when RAM is low.
+
+## Historical storage
+
+`storage.py` stores samples and diagnosis state transitions in
+`data/observatory.sqlite3`. The dashboard reads recent stored samples for its
+trend chart and displays recent diagnosis changes. The database path and
+retention period are configured through `STORAGE_CONFIG` in `config.py`; the
+default retention is 30 days. SQLite files under `data/` are ignored by Git.
+
+Actual health samples, including reasons and indicators, are stored separately
+from diagnosis transitions and retrieved oldest-first with `get_recent_health`.
+Metric samples are also returned oldest-first; diagnosis transitions are returned
+newest-first. New timestamps are canonical UTC ISO strings; legacy naive timestamps
+are interpreted as UTC. Existing valid offset timestamps remain readable.
+
+Diagnosis rows retain transition time and onset evidence while updating the latest
+evidence, contributors, recommendation and `last_seen_at` during an unchanged
+state. Severity changes create another transition within the same observed
+incident. Explicit recovery closes that incident with `resolved_at` and
+`incident_duration_seconds`. This elapsed observation span is distinct from the
+diagnosis's metric-window `duration_seconds`; it does not prove uninterrupted
+pressure between observations. Repeated recovery samples preserve the final
+incident duration. Additive schema updates preserve pre-existing rows, but missing
+historical incident details cannot be reconstructed retroactively.
+For each condition, only observations newer than its latest accepted observation
+may mutate incident state. Late observations and duplicate/conflicting observations
+at the same timestamp are ignored for lifecycle updates (first accepted wins).
+They do not reopen completed incidents; metric and health storage remain independent.
+
+WAL, bounded lock handling and serialized writes support concurrent dashboard
+access. Expected SQLite/filesystem failures show an incomplete-history warning
+while live monitoring continues; programming errors remain visible. The default
+database is shared by sessions monitoring this application host. It does not yet
+identify separate hosts or separate monitoring sessions.
+Each dashboard session initializes history once per database/schema identity.
+Refreshes check the schema cookie without rerunning migrations; initialization
+is retried after failure and repeated for new sessions or changed databases.
 
 ## Feature D: Statistical Process Attribution
 
@@ -171,6 +245,12 @@ visibility, and metric variation.
 python -m unittest discover -s tests -v
 ```
 
+Database tests use temporary databases. With the declared runtime dependencies
+installed, the suite also runs Streamlit AppTest smoke tests using real collection
+and an unavailable-storage case. It checks synthetic pressure/recovery through
+the full pipeline and reads persistence from a separate Python process. Tests do
+not launch stress workloads.
+
 ## Try a controlled CPU workload (Linux)
 
 In a separate terminal, run `yes > /dev/null`, observe the dashboard, and stop
@@ -180,14 +260,16 @@ Overall CPU percentage depends on the number of available CPU cores.
 ## Implementation boundaries
 
 - `collector.py` owns operating-system sampling and returns plain dictionaries.
-- `app.py` renders the dashboard and keeps short-lived metric history in the
-  Streamlit session; it does not persist data.
-- `health.py` and `analyzer.py` evaluate configured pressure indicators but do
-  not diagnose or confirm performance bottlenecks.
+- `app.py` integrates the collector, health indicator, analyzer, diagnosis,
+  recommendations, and storage modules into the dashboard.
+- `health.py` and `analyzer.py` evaluate configured pressure indicators;
+  `diagnosis.py` explains those findings without claiming confirmed causation.
+- `recommendations.py` returns safe informational steps. `storage.py` saves
+  samples and diagnosis state changes in SQLite.
 - `attribution.py` calculates statistical associations from retained snapshots
   without claiming causation.
 - `tests/` covers the collector, health indicator, and assessment logic using
   synthetic metrics where appropriate.
 
-This separation gives future analyzer, recommendation, and storage modules a
-stable snapshot interface to integrate with.
+The modules exchange plain dictionaries so they can be reviewed and changed
+independently.

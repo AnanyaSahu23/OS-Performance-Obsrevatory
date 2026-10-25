@@ -65,6 +65,15 @@ class TestHealth(unittest.TestCase):
         self.assertEqual(result["status"], "Unknown")
         self.assertIn("RAM information is unavailable.", result["reasons"])
 
+    def test_unavailable_swap_is_not_misreported_as_zero(self):
+        metrics = make_metrics()
+        metrics["swap"] = {"total": None, "used": None, "percent": None}
+
+        result = evaluate_health(metrics, make_history([30, 35, 32]))
+
+        self.assertEqual(result["status"], "Healthy")
+        self.assertIsNone(result["indicators"]["Swap utilization"])
+
 
 if __name__ == "__main__":
     unittest.main()

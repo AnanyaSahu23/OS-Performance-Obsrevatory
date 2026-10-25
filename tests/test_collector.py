@@ -75,6 +75,26 @@ class CollectorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             get_top_processes(limit=0)
 
+    @patch("collector.psutil.cpu_percent", return_value=42.5)
+    @patch("collector.psutil.virtual_memory")
+    @patch("collector.psutil.swap_memory", side_effect=RuntimeError("counter unavailable"))
+    @patch("collector.psutil.process_iter")
+    def test_unavailable_swap_does_not_discard_other_metrics(
+        self, process_iter, swap_memory, virtual_memory, cpu_percent
+    ):
+        process_iter.return_value = iter(self.processes)
+        virtual_memory.return_value = SimpleNamespace(
+            total=1000, used=600, available=400, percent=60.0
+        )
+
+        snapshot = collect_snapshot()
+
+        self.assertEqual(snapshot["cpu_percent"], 42.5)
+        self.assertEqual(snapshot["memory"]["percent"], 60.0)
+        self.assertEqual(
+            snapshot["swap"], {"total": None, "used": None, "percent": None}
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

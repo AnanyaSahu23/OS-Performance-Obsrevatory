@@ -206,6 +206,10 @@ def _assess_memory(
             )
         return {
             "status": "Possible memory pressure",
+            "swap_evidence": (
+                (["increasing"] if swap_increasing else [])
+                + (["elevated"] if swap_percent >= swap_threshold else [])
+            ),
             "evidence": evidence
             + [
                 "These resource indicators do not establish that an application is "
