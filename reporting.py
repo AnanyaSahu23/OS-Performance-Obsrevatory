@@ -113,10 +113,22 @@ def build_diagnosis_rows(events):
     return rows
 
 
+def _csv_cell(value):
+    if isinstance(value, str) and (
+        value.lstrip().startswith(("=", "+", "-", "@"))
+        or value.startswith(("\t", "\r", "\n"))
+    ):
+        return "'" + value
+    return value
+
+
 def diagnoses_to_csv(events):
     """Export the same report rows as UTF-8 CSV, including headers for empty data."""
     buffer = StringIO(newline="")
     writer = csv.DictWriter(buffer, fieldnames=REPORT_COLUMNS)
     writer.writeheader()
-    writer.writerows(build_diagnosis_rows(events))
+    # CSV quoting does not stop spreadsheet formula interpretation. Escape only
+    # export text, leaving numeric cells and the stored/displayed records intact.
+    for row in build_diagnosis_rows(events):
+        writer.writerow({key: _csv_cell(value) for key, value in row.items()})
     return buffer.getvalue().encode("utf-8-sig")

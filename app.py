@@ -91,7 +91,7 @@ def _show_attribution_findings(
         }
         for finding in findings
     ]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
     for finding in findings:
         with st.expander(
             f'{finding["name"]} (PID {finding["pid"]}) - supporting evidence'
@@ -236,7 +236,7 @@ def render_dashboard() -> None:
                     st.dataframe(
                         _process_table(diagnosis["observed_processes"]),
                         hide_index=True,
-                        use_container_width=True,
+                        width="stretch",
                     )
                 st.caption(diagnosis["limitation"])
     st.caption(bottlenecks["overall_note"])
@@ -368,7 +368,7 @@ def render_dashboard() -> None:
         st.dataframe(
             [{"Time (UTC)": item["sampled_at"], "Health": item["status"]}
              for item in health_samples],
-            hide_index=True, use_container_width=True,
+            hide_index=True, width="stretch",
         )
     else:
         st.write("No historical health samples are available.")
@@ -381,14 +381,14 @@ def render_dashboard() -> None:
         st.dataframe(
             _process_table(snapshot["top_cpu"]),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
     with memory_process_col:
         st.subheader("Top processes by RAM")
         st.dataframe(
             _process_table(snapshot["top_memory"]),
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 

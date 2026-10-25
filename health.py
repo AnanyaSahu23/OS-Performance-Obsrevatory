@@ -1,10 +1,15 @@
+import math
+
 from config import HEALTH_CONFIG
 
 
 def _as_float(value, default=0.0):
+    if isinstance(value, bool):
+        return default
     try:
-        return float(value)
-    except (TypeError, ValueError):
+        number = float(value)
+        return number if math.isfinite(number) else default
+    except (TypeError, ValueError, OverflowError):
         return default
 
 
@@ -25,11 +30,16 @@ def evaluate_health(metrics, history, config=None):
             "indicators": {},
         }
 
-    memory = metrics.get("memory") or {}
-    swap = metrics.get("swap") or {}
+    memory = metrics.get("memory")
+    memory = memory if isinstance(memory, dict) else {}
+    swap = metrics.get("swap")
+    swap = swap if isinstance(swap, dict) else {}
     total_ram = _as_float(memory.get("total"), 0.0)
+    available_ram = _as_float(memory.get("available"), None)
+    memory_percent = _as_float(memory.get("percent"), None)
 
-    if total_ram <= 0:
+    if (total_ram <= 0 or available_ram is None or memory_percent is None
+            or not 0 <= available_ram <= total_ram or not 0 <= memory_percent <= 100):
         return {
             "status": "Unknown",
             "reasons": ["RAM information is unavailable."],
@@ -37,9 +47,9 @@ def evaluate_health(metrics, history, config=None):
         }
 
     cpu_percent = _as_float(metrics.get("cpu_percent"), 0.0)
-    available_ram = _as_float(memory.get("available"), 0.0)
-    memory_percent = _as_float(memory.get("percent"), 0.0)
     swap_percent = _as_float(swap.get("percent"), None)
+    if swap_percent is not None and not 0 <= swap_percent <= 100:
+        swap_percent = None
     available_memory_percent = (available_ram / total_ram) * 100.0
 
     warnings = []

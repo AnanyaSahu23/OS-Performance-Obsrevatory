@@ -27,6 +27,31 @@ def make_history(cpu_values):
 
 
 class TestHealth(unittest.TestCase):
+    def test_invalid_required_ram_readings_are_unknown(self):
+        for field, values in {
+            "total": [None, 0, -1, True, float("nan"), float("inf")],
+            "available": [None, -1, 1001, True, float("nan"), float("inf")],
+            "percent": [None, -1, 101, True, float("nan"), float("inf")],
+        }.items():
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    metrics = make_metrics()
+                    metrics["memory"][field] = value
+                    self.assertEqual(evaluate_health(metrics, [])["status"], "Unknown")
+            metrics = make_metrics()
+            del metrics["memory"][field]
+            self.assertEqual(evaluate_health(metrics, [])["status"], "Unknown")
+        for value in (None, [], "invalid"):
+            self.assertEqual(evaluate_health({"memory": value}, [])["status"], "Unknown")
+
+    def test_invalid_optional_swap_is_unavailable(self):
+        for value in (float("nan"), float("inf"), -1, 101, True):
+            with self.subTest(value=value):
+                metrics = make_metrics(swap_percent=value)
+                result = evaluate_health(metrics, [])
+                self.assertEqual(result["status"], "Healthy")
+                self.assertIsNone(result["indicators"]["Swap utilization"])
+
     def test_healthy_status(self):
         metrics = make_metrics(cpu=30.0, memory_percent=50.0, available_percent=50.0)
         history = make_history([30, 35, 32])

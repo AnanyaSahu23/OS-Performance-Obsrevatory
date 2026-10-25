@@ -28,6 +28,19 @@ def stored_event(**updates):
 
 
 class ReportTests(unittest.TestCase):
+    def test_csv_neutralizes_formula_text_without_changing_display_or_numbers(self):
+        for text in ("=1+1", "+1+1", "-1+1", "@SUM(1)", "  =1+1", "\tvalue", "\rvalue", "\nvalue"):
+            with self.subTest(text=text):
+                event = stored_event(recommendation=text, observed_processes=[{"name": text}],
+                                     duration_seconds=-1)
+                original = copy.deepcopy(event)
+                row = next(csv.DictReader(StringIO(diagnoses_to_csv([event]).decode("utf-8-sig"))))
+                self.assertEqual(row["Recommendation"], "'" + text)
+                self.assertEqual(row["Observed contributors (not proven causes)"], "'" + text)
+                self.assertEqual(row["Metric duration (s)"], "-1.0")
+                self.assertEqual(build_diagnosis_rows([event])[0]["Recommendation"], text)
+                self.assertEqual(event, original)
+
     def test_csv_headers_unicode_quoting_and_stored_values(self):
         event = stored_event()
         reader = csv.DictReader(StringIO(diagnoses_to_csv([event]).decode("utf-8-sig")))

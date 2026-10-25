@@ -170,6 +170,9 @@ class ReportDashboardTests(unittest.TestCase):
         self.assertTrue(any(section.value == "Diagnosis History and Reports" for section in app.subheader))
         report_tables = [table.value for table in app.dataframe if "Supporting evidence" in table.value.columns]
         self.assertEqual(len(report_tables), 2)
+        for table in report_tables:
+            self.assertEqual(table["Memory (%)"].dtype.kind, "f")
+            self.assertTrue(table["Memory (%)"].isna().any())
         self.assertIn("Stored history evidence", report_tables[0]["Supporting evidence"].tolist())
         self.assertIn("Stored history recommendation", report_tables[0]["Recommendation"].tolist())
         self.assertEqual(len(app.get("download_button")), 1)

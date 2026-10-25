@@ -1,5 +1,6 @@
 """History table and CSV download; no sampling, classification or persistence."""
 
+import pandas as pd
 import streamlit as st
 
 from dashboard_storage import storage_call
@@ -30,10 +31,13 @@ def render_diagnosis_reports(storage_ready):
     visible = ("Recorded at (UTC)", "Last observed (UTC)", "Condition", "Status", "Severity",
                "CPU (%)", "Memory (%)", "Observed contributors (not proven causes)",
                "Supporting evidence", "Recommendation")
-    st.dataframe([{key: row[key] for key in visible} for row in rows],
-                 hide_index=True, use_container_width=True)
+    table = pd.DataFrame(rows)
+    for column in ("CPU (%)", "Memory (%)", "Swap (%)", "Incident elapsed (s)", "Metric duration (s)"):
+        table[column] = pd.to_numeric(table[column], errors="coerce")
+    st.dataframe(table[list(visible)],
+                 hide_index=True, width="stretch")
     with st.expander("Full stored details and incident lifecycle"):
-        st.dataframe(rows, hide_index=True, use_container_width=True)
+        st.dataframe(table, hide_index=True, width="stretch")
         st.caption("Incident elapsed time and metric-window duration have different scopes; neither is recomputed.")
     st.download_button("Download diagnosis CSV", data=diagnoses_to_csv(events),
                        file_name="diagnosis_history.csv", mime="text/csv", key="diagnosis_report_download")

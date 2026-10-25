@@ -100,6 +100,8 @@ View the latest 20, 100 or 500 stored diagnosis transitions and download the sam
 records as CSV. Reports preserve evidence, recommendations and incident timestamps;
 metrics are included only for an exact, unambiguous stored observation match.
 Missing values stay blank. Listed processes are observed contributors, not proven causes.
+CSV text that could be interpreted as a spreadsheet formula is prefixed with an
+apostrophe for safe opening; stored records and dashboard text are unchanged.
 
 ## Feature D: Statistical Process Attribution
 
