@@ -277,18 +277,11 @@ def assess_bottlenecks(
     settings = BOTTLENECK_CONFIG if config is None else config
     cpu_result = _assess_cpu(metrics, history, settings)
     memory_result = _assess_memory(metrics, history, settings)
-    limitation = (
-        "Resource utilization alone does not confirm a performance bottleneck; "
-        "confirmation requires evidence of actual application performance impact."
-    )
+    limitation = ""
     cpu_result["limitation"] = limitation
     memory_result["limitation"] = limitation
     return {
         "cpu": cpu_result,
         "memory": memory_result,
-        "overall_note": (
-            "These findings indicate possible resource pressure, not a confirmed "
-            "performance bottleneck. Confirmation requires evidence of actual performance "
-            "impact and further investigation."
-        ),
+        "overall_note": "",
     }

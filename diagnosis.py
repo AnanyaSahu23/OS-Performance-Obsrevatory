@@ -170,10 +170,7 @@ def build_diagnoses(
                     if processes
                     else "No process contribution is established by this finding."
                 ),
-                "limitation": finding.get(
-                    "limitation",
-                    "Resource metrics alone do not confirm a performance bottleneck.",
-                ),
+                "limitation": finding.get("limitation", ""),
                 "sampled_at": snapshot.get("sampled_at"),
                 "health_status": health.get("status", "Unknown"),
             }

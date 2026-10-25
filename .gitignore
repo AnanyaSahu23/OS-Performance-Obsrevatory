@@ -6,3 +6,5 @@ data/*.sqlite
 data/*.sqlite3
 .streamlit/secrets.toml
 prompt.txt
+observatory.sqlite3-shm
+observatorty.sqlite3-wal

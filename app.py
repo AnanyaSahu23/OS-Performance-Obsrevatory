@@ -35,10 +35,6 @@ st.set_page_config(
     layout="wide",
 )
 st.title("OS Performance Observatory")
-st.caption(
-    "Evidence-based indicators of possible resource pressure. "
-    "Findings do not confirm a performance bottleneck."
-)
 
 
 def _format_gb(value: int) -> str:
@@ -180,9 +176,6 @@ def render_dashboard() -> None:
 
     st.divider()
     st.subheader("CPU and Memory Bottleneck Assessment")
-    st.caption(
-        "Resource pressure is an indicator, not proof of a performance bottleneck."
-    )
     cpu_assessment_col, memory_assessment_col = st.columns(2)
     for col, title, resource, result in (
         (cpu_assessment_col, "CPU Assessment", "cpu", bottlenecks["cpu"]),
@@ -238,8 +231,10 @@ def render_dashboard() -> None:
                         hide_index=True,
                         width="stretch",
                     )
-                st.caption(diagnosis["limitation"])
-    st.caption(bottlenecks["overall_note"])
+                if diagnosis["limitation"]:
+                    st.caption(diagnosis["limitation"])
+    if bottlenecks["overall_note"]:
+        st.caption(bottlenecks["overall_note"])
 
     st.divider()
     st.subheader("Baseline-based anomaly detection")

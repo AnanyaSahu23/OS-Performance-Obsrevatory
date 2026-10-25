@@ -48,7 +48,7 @@ class BottleneckAssessmentTests(unittest.TestCase):
         )
         self.assertEqual(result["cpu"]["status"], "Possible CPU pressure")
         self.assertTrue(any("3 consecutive samples" in item for item in result["cpu"]["evidence"]))
-        self.assertIn("does not confirm", result["cpu"]["limitation"])
+        self.assertFalse(result["cpu"]["limitation"])
 
     def test_transient_cpu_spike_is_not_called_sustained_pressure(self):
         result = assess_bottlenecks(
