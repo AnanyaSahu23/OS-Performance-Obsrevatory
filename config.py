@@ -144,6 +144,14 @@ STORAGE_CONFIG = {
     "connection_timeout_seconds": 5,
 }
 
+BASELINE_CONFIG = {
+    "window_size": 60,
+    "minimum_samples": 15,
+    "anomaly_threshold": 3.0,
+    # Percentage-point floor for constant or near-constant utilization history.
+    "minimum_stddev": 0.5,
+}
+
 PROCESS_ATTRIBUTION_CONFIG = {
     # A system sample counts as CPU pressure above this level.
     "cpu_pressure_threshold": 80.0,

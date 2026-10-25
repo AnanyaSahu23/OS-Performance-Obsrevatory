@@ -86,6 +86,14 @@ SQLite stores metrics, health samples and diagnosis changes in
 The path and default 30-day retention are configured in `STORAGE_CONFIG`.
 Use a writable local filesystem, not a network or VM-shared folder.
 
+## Baseline-based anomaly detection
+
+Compares CPU and memory utilization with up to 60 earlier SQLite samples using
+a high-side Z-score. At least 15 valid readings are required; scores >= 3 flag
+unusual utilization. A 0.5-percentage-point deviation floor handles flat history.
+Configure these defaults in `BASELINE_CONFIG`. Results are separate from health
+and bottleneck classifications.
+
 ## Feature D: Statistical Process Attribution
 
 ### Methodology

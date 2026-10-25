@@ -7,8 +7,9 @@ import streamlit as st
 
 from analyzer import assess_bottlenecks
 from attribution import assess_process_attribution
+from baseline import detect_anomalies
 from collector import collect_snapshot
-from config import PROCESS_ATTRIBUTION_CONFIG
+from config import BASELINE_CONFIG, PROCESS_ATTRIBUTION_CONFIG
 from diagnosis import build_diagnoses
 from dashboard_storage import storage_call
 from health import evaluate_health
@@ -135,6 +136,12 @@ def render_dashboard() -> None:
     storage_ready = storage_call(
         ensure_database_initialized, st.session_state, on_error=st.warning, default=False
     ) is not False
+    baseline_history = (
+        storage_call(get_recent_metrics, BASELINE_CONFIG["window_size"],
+                     before=snapshot["sampled_at"], on_error=st.warning, default=[])
+        if storage_ready else []
+    )
+    anomalies = detect_anomalies(snapshot, baseline_history)
     if storage_ready:
         storage_call(save_snapshot, snapshot, on_error=st.warning)
         storage_call(save_health, health, snapshot["sampled_at"], on_error=st.warning)
@@ -230,6 +237,25 @@ def render_dashboard() -> None:
                     )
                 st.caption(diagnosis["limitation"])
     st.caption(bottlenecks["overall_note"])
+
+    st.divider()
+    st.subheader("Baseline-based anomaly detection")
+    st.caption(
+        "Compares utilization with strictly earlier stored samples. Unusual activity "
+        "is not a confirmed bottleneck and does not change the fixed-threshold health status."
+    )
+    for col, resource, label in zip(st.columns(2), ("cpu", "memory"), ("CPU", "Memory")):
+        finding = anomalies[resource]
+        with col:
+            if finding["status"] == "unusual":
+                st.warning(f"{label}: unusual utilization")
+            elif finding["status"] == "normal":
+                st.success(f"{label}: within recent baseline")
+            elif finding["status"] == "unavailable":
+                st.info(f"{label}: current reading unavailable")
+            else:
+                st.info(f"{label}: insufficient historical data")
+            st.write(finding["explanation"])
 
     st.divider()
     st.header("Statistical Process Attribution")
